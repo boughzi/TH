@@ -1,0 +1,204 @@
+name: LiveTV
+
+# UN SOLO WORKFLOW (usa livetv.zip de la raíz del repo hasta que se instalen las carpetas) y hace todo: instalar en el repo, compilar APK + Release, revisar canales y publicar el panel.
+# Uso: Actions > LiveTV > Run workflow > elige la acción.
+
+on:
+  workflow_dispatch:
+    inputs:
+      accion:
+        description: "Qué hacer (la primera vez: todo)"
+        type: choice
+        default: todo
+        options: [todo, instalar, apk, admin, canales]
+  schedule:
+    - cron: "0 2 * * *"          # revisión nocturna de canales
+  push:
+    branches: [main]
+    paths: ["app/**", "admin-panel/**"]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  proyecto:
+    runs-on: ubuntu-latest
+    outputs:
+      do_apk: ${{ steps.f.outputs.do_apk }}
+      do_admin: ${{ steps.f.outputs.do_admin }}
+      do_canales: ${{ steps.f.outputs.do_canales }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decidir acciones
+        id: f
+        run: |
+          ACC="${{ github.event.inputs.accion }}"
+          case "${{ github.event_name }}" in
+            schedule) ACC=canales ;;
+            push) ACC=pushauto ;;
+          esac
+          has() { case " $1 " in *" $ACC "*) echo true ;; *) echo false ;; esac; }
+          echo "do_install=$(has 'instalar todo')" >> "$GITHUB_OUTPUT"
+          echo "do_apk=$(has 'apk todo pushauto')" >> "$GITHUB_OUTPUT"
+          echo "do_admin=$(has 'admin todo pushauto')" >> "$GITHUB_OUTPUT"
+          echo "do_canales=$(has 'canales')" >> "$GITHUB_OUTPUT"
+
+      - name: Extraer proyecto de livetv.zip
+        run: |
+          INSTALL="${{ steps.f.outputs.do_install }}"
+          if [ -f livetv.zip ]; then
+            rm -rf /tmp/p && mkdir -p /tmp/p
+            unzip -q livetv.zip -d /tmp/p
+            SRC=/tmp/p/livetv
+          else
+            SRC=.
+          fi
+          if [ "$INSTALL" = "true" ] && [ "$SRC" = "." ]; then
+            echo "::error::No hay livetv.zip en la raíz del repositorio"; exit 1
+          fi
+          for d in app admin-panel supabase scripts; do
+            if [ -d "$d" ] && [ "$INSTALL" != "true" ]; then continue; fi
+            [ -d "$SRC/$d" ] || { echo "::error::Falta la carpeta $d y no hay livetv.zip en la raíz"; exit 1; }
+            rm -rf "$d"; cp -r "$SRC/$d" "$d"
+          done
+          if [ "$INSTALL" = "true" ]; then cp "$SRC/README.md" "$SRC/.gitignore" .; fi
+
+      - name: Guardar en el repositorio
+        if: steps.f.outputs.do_install == 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          [ -f livetv.zip ] && git rm -q livetv.zip || true
+          git add app admin-panel supabase scripts README.md .gitignore
+          git diff --cached --quiet || git commit -m "Proyecto LiveTV"
+          git push
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proyecto
+          path: |
+            app
+            admin-panel
+            supabase
+            scripts
+
+  apk:
+    needs: proyecto
+    if: needs.proyecto.outputs.do_apk == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: proyecto
+
+      - name: Verificar Secrets de Supabase
+        env:
+          RAW_URL: ${{ secrets.SUPABASE_URL }}
+          RAW_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          URL=$(printf '%s' "$RAW_URL" | tr -d ' \r\n' | sed 's:/*$::')
+          KEY=$(printf '%s' "$RAW_KEY" | tr -d ' \r\n')
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then
+            echo "::error::Faltan los Secrets SUPABASE_URL y/o SUPABASE_ANON_KEY (Settings > Secrets and variables > Actions)"; exit 1
+          fi
+          case "$URL" in https://*) ;; *) echo "::error::SUPABASE_URL debe empezar por https://"; exit 1;; esac
+          echo "SB_URL=$URL" >> "$GITHUB_ENV"
+          echo "SB_KEY=$KEY" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Preparar proyecto Android
+        working-directory: app
+        run: |
+          flutter create --platforms=android --org com.livetv .
+          rm -rf test
+          python3 tools/patch_android.py
+          flutter pub get
+
+      - name: Compilar APK
+        working-directory: app
+        run: >
+          flutter build apk --release
+          --dart-define=SUPABASE_URL=$SB_URL
+          --dart-define=SUPABASE_ANON_KEY=$SB_KEY
+
+      - run: cp app/build/app/outputs/flutter-apk/app-release.apk livetv.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: livetv-apk
+          path: livetv.apk
+
+      - name: Publicar Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: LiveTV APK #${{ github.run_number }}
+          files: livetv.apk
+
+  canales:
+    needs: proyecto
+    if: needs.proyecto.outputs.do_canales == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: proyecto
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - name: Revisar canales
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_KEY" ]; then
+            echo "::warning::Faltan los Secrets SUPABASE_URL / SUPABASE_SERVICE_KEY: no se revisa nada"; exit 0
+          fi
+          python scripts/check_channels.py
+
+  admin:
+    needs: proyecto
+    if: needs.proyecto.outputs.do_admin == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: proyecto
+      - name: Inyectar credenciales públicas en el panel
+        env:
+          RAW_URL: ${{ secrets.SUPABASE_URL }}
+          RAW_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          URL=$(printf '%s' "$RAW_URL" | tr -d ' \r\n' | sed 's:/*$::')
+          KEY=$(printf '%s' "$RAW_KEY" | tr -d ' \r\n')
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then
+            echo "::error::Faltan los Secrets SUPABASE_URL y/o SUPABASE_ANON_KEY"; exit 1
+          fi
+          cat > admin-panel/config.js <<EOF
+          window.APP_CONFIG = { SUPABASE_URL: "$URL", SUPABASE_ANON_KEY: "$KEY" };
+          EOF
+          mkdir -p _site/admin-panel
+          cp -r admin-panel/* _site/admin-panel/
+          echo '<meta http-equiv="refresh" content="0;url=admin-panel/">' > _site/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
