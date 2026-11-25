@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>LiveTV · Admin</title>
+<style>
+:root{--bg:#0e1014;--card:#161a21;--line:#262c38;--tx:#e8ecf3;--mut:#8b93a5;--ac:#4f8cff;--ok:#2fbf71;--warn:#e3a008;--bad:#ef4444}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+[hidden]{display:none!important}
+input,select,textarea,button{font:inherit;color:inherit}
+input,select,textarea{background:#0e1014;border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-width:100%}
+input[type=checkbox]{width:16px;height:16px;padding:0}
+textarea{width:100%;min-height:120px}
+button{background:#222836;border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer}
+button:hover{border-color:var(--ac)}
+button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+button.danger{border-color:var(--bad);color:var(--bad)}
+button.mini{padding:4px 8px;font-size:12px}
+.center{min-height:100vh;display:grid;place-items:center;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;width:min(360px,100%);display:grid;gap:12px}
+.err{color:var(--bad);margin:0;min-height:1.2em}
+header{display:flex;align-items:center;gap:16px;padding:10px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5;flex-wrap:wrap}
+nav{display:flex;gap:6px;flex:1;flex-wrap:wrap}
+nav button.on{background:var(--ac);border-color:var(--ac);color:#fff}
+main{padding:16px;max-width:1300px;margin:0 auto}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.scroll{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:70vh}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{color:var(--mut);font-weight:600;font-size:12px;position:sticky;top:0;background:var(--card);z-index:1}
+tr:last-child td{border-bottom:0}
+.b{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;border:1px solid;margin-right:4px}
+.green{color:var(--ok);border-color:var(--ok)}.amber{color:var(--warn);border-color:var(--warn)}.red{color:var(--bad);border-color:var(--bad)}.gray{color:var(--mut);border-color:var(--line)}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.logo{width:32px;height:32px;object-fit:contain;background:#0e1014;border-radius:6px;vertical-align:middle}
+.flag{width:20px;height:14px;vertical-align:middle;margin-right:6px;border-radius:2px}
+code{background:#0e1014;padding:2px 6px;border-radius:6px;letter-spacing:1px}
+dialog{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:14px;padding:20px;width:min(540px,94vw)}
+dialog::backdrop{background:#000a}
+.grid{display:grid;gap:10px}
+.grid label{display:grid;gap:4px;color:var(--mut);font-size:12px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chk{display:flex!important;grid-auto-flow:column;justify-content:start;align-items:center;gap:8px!important}
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ok);color:#06210f;padding:10px 16px;border-radius:10px;z-index:50}
+.toast.bad{background:var(--bad);color:#fff}
+.mut{color:var(--mut)}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="center">
+  <form id="loginForm" class="card">
+    <h2 style="margin:0">LiveTV · Admin</h2>
+    <input id="email" type="email" placeholder="Correo" required autocomplete="username">
+    <input id="pass" type="password" placeholder="Contraseña" required autocomplete="current-password">
+    <button class="pri">Entrar</button>
+    <p id="loginMsg" class="err"></p>
+  </form>
+</div>
+
+<!-- APP -->
+<div id="app" hidden>
+  <header>
+    <b>LiveTV Admin</b>
+    <nav id="tabs">
+      <button data-tab="users" class="on">Usuarios</button>
+      <button data-tab="channels">Canales</button>
+      <button data-tab="cats">Categorías</button>
+      <button data-tab="settings">Ajustes</button>
+    </nav>
+    <button id="logout">Salir</button>
+  </header>
+  <main>
+    <!-- USUARIOS -->
+    <section id="tab-users">
+      <div class="bar">
+        <input id="uSearch" placeholder="Buscar correo…" style="min-width:240px">
+        <span id="uCount" class="mut"></span>
+        <button id="uReload">Recargar</button>
+      </div>
+      <div class="scroll"><table>
+        <thead><tr><th>Correo</th><th>Estado</th><th>Código</th><th>Caduca</th><th>Acciones</th></tr></thead>
+        <tbody id="uBody"></tbody>
+      </table></div>
+    </section>
+
+    <!-- CANALES -->
+    <section id="tab-channels" hidden>
+      <div class="bar">
+        <input id="cSearch" placeholder="Buscar canal…">
+        <select id="fCountry"></select>
+        <select id="fCat"></select>
+        <select id="fStatus">
+          <option value="">Todos</option><option value="ok">Visibles</option>
+          <option value="down">Caídos</option><option value="hidden">Ocultos</option>
+        </select>
+        <button id="cAdd" class="pri">+ Añadir</button>
+        <button id="cImport">Importar</button>
+      </div>
+      <div class="bar">
+        <span id="cInfo" class="mut"></span>
+        <button id="bHide" class="mini">Ocultar</button>
+        <button id="bShow" class="mini">Mostrar</button>
+        <select id="bCat"></select>
+        <button id="bMove" class="mini">Mover a categoría</button>
+        <button id="bDel" class="mini danger">Eliminar</button>
+      </div>
+      <div class="scroll"><table>
+        <thead><tr><th><input type="checkbox" id="cAll"></th><th></th><th>Canal</th><th>País</th><th>Categoría</th><th>Estado</th><th>Revisado</th><th></th></tr></thead>
+        <tbody id="cBody"></tbody>
+      </table></div>
+    </section>
+
+    <!-- CATEGORÍAS -->
+    <section id="tab-cats" hidden>
+      <div class="bar">
+        <input id="catNew" placeholder="Nueva categoría">
+        <button id="catAdd" class="pri">Añadir</button>
+        <span style="flex:1"></span>
+        <button id="kHide" class="mini">Ocultar</button>
+        <button id="kShow" class="mini">Mostrar</button>
+        <button id="kDel" class="mini danger">Eliminar</button>
+      </div>
+      <div class="scroll"><table style="min-width:520px">
+        <thead><tr><th><input type="checkbox" id="kAll"></th><th>Nombre</th><th>Orden</th><th>Canales</th><th>Estado</th></tr></thead>
+        <tbody id="kBody"></tbody>
+      </table></div>
+    </section>
+
+    <!-- AJUSTES -->
+    <section id="tab-settings" hidden>
+      <div class="grid" style="max-width:520px">
+        <label>Mensaje de contacto (se muestra en la pantalla de activación)
+          <textarea id="contactText"></textarea></label>
+        <button id="saveSettings" class="pri">Guardar</button>
+        <p class="mut">La clave AES-256 está en <code>app_config.aes_key</code>. No la cambies si ya hay canales cargados: dejarían de descifrarse.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- DIÁLOGO CANAL -->
+<dialog id="chDlg">
+  <form id="chForm" class="grid">
+    <h3 id="chTitle" style="margin:0">Canal</h3>
+    <label>Nombre<input id="fName" required></label>
+    <div class="row2">
+      <label>Código país (2 letras, ej. es)<input id="fCc" maxlength="2" required></label>
+      <label>Nombre del país<input id="fCn" required></label>
+    </div>
+    <label>Categoría<select id="fCategory"></select></label>
+    <label>Logo (URL)<input id="fLogo" type="url"></label>
+    <label>URL del stream (.m3u8) — se guarda cifrada<input id="fUrl" required></label>
+    <div class="row2">
+      <label>Orden<input id="fOrder" type="number" value="0"></label>
+      <span></span>
+    </div>
+    <label class="chk"><input type="checkbox" id="fHidden"> Oculto</label>
+    <label class="chk"><input type="checkbox" id="fActive"> Activo (lo gestiona la revisión nocturna)</label>
+    <div class="acts" style="justify-content:flex-end">
+      <button type="button" id="chCancel">Cancelar</button>
+      <button class="pri">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- DIÁLOGO IMPORTAR -->
+<dialog id="impDlg" class="grid">
+  <h3 style="margin:0">Importar canales</h3>
+  <p class="mut" style="margin:0">Una línea por canal:<br><code>Nombre | es | España | Deportes | https://logo.png | https://stream.m3u8</code></p>
+  <textarea id="impText" placeholder="La 1 | es | España | Generalistas | https://… | https://…"></textarea>
+  <div class="acts" style="justify-content:flex-end">
+    <button type="button" id="impCancel">Cancelar</button>
+    <button type="button" id="impGo" class="pri">Importar</button>
+  </div>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.APP_CONFIG || {};
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { storageKey: 'livetv-admin-auth' } });
+
+/* ---------- utilidades ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const chunk = (a, n) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
+const pad = n => String(n).padStart(2, '0');
+const localDate = iso => { const d = new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+function toast(msg, bad) {
+  const t = document.createElement('div');
+  t.className = 'toast' + (bad ? ' bad' : '');
+  t.textContent = msg;
+  document.body.append(t);
+  setTimeout(() => t.remove(), 2800);
+}
+async function fetchAll(table, order) {
+  const out = []; let from = 0;
+  for (;;) {
+    const { data, error } = await sb.from(table).select('*').order(order).order('id').range(from, from + 999);
+    if (error) throw error;
+    out.push(...data);
+    if (data.length < 1000) return out;
+    from += 1000;
+  }
+}
+
+/* ---------- AES-256-GCM (formato: base64(nonce12 || cifrado+tag)) ---------- */
+let aesKey = null;
+const hex2bytes = h => Uint8Array.from(h.match(/.{2}/g).map(b => parseInt(b, 16)));
+async function loadKey() {
+  const { data, error } = await sb.from('app_config').select('value').eq('key', 'aes_key').single();
+  if (error) throw error;
+  aesKey = await crypto.subtle.importKey('raw', hex2bytes(data.value.trim()), 'AES-GCM', false, ['encrypt', 'decrypt']);
+}
+async function enc(text) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, new TextEncoder().encode(text)));
+  const out = new Uint8Array(12 + ct.length);
+  out.set(iv); out.set(ct, 12);
+  return btoa(String.fromCharCode(...out));
+}
+async function dec(b64) {
+  const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: raw.slice(0, 12) }, aesKey, raw.slice(12));
+  return new TextDecoder().decode(pt);
+}
+const ALPH = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 símbolos, sin I/O/0/1
+const genCode = () => [...crypto.getRandomValues(new Uint8Array(8))].map(x => ALPH[x & 31]).join('');
+
+/* ---------- estado ---------- */
+const state = { users: [], channels: [], cats: [] };
+const selCh = new Set(), selCat = new Set();
+const catName = id => state.cats.find(c => c.id === id)?.name ?? '—';
+
+/* ---------- login ---------- */
+async function isAdmin() { const { data } = await sb.rpc('is_admin'); return data === true; }
+$('#loginForm').onsubmit = async e => {
+  e.preventDefault();
+  $('#loginMsg').textContent = '';
+  const { error } = await sb.auth.signInWithPassword({ email: $('#email').value.trim(), password: $('#pass').value });
+  if (error) return ($('#loginMsg').textContent = error.message);
+  if (!(await isAdmin())) { await sb.auth.signOut(); return ($('#loginMsg').textContent = 'Esta cuenta no es administradora.'); }
+  enter();
+};
+$('#logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+async function enter() {
+  $('#login').hidden = true; $('#app').hidden = false;
+  try { await loadAll(); } catch (e) { toast(e.message || 'Error cargando datos', true); }
+}
+async function loadAll() {
+  await loadKey();
+  const [u, c, k] = await Promise.all([fetchAll('user_codes', 'created_at'), fetchAll('channels', 'sort_order'), fetchAll('categories', 'sort_order')]);
+  state.users = u.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  state.channels = c.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+  state.cats = k.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+  fillFilters(); renderUsers(); renderChannels(); renderCats(); loadSettings();
+}
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session && await isAdmin()) enter();
+})();
+
+/* ---------- pestañas ---------- */
+$('#tabs').onclick = e => {
+  const b = e.target.closest('button[data-tab]'); if (!b) return;
+  $$('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $$('main > section').forEach(s => s.hidden = s.id !== 'tab-' + b.dataset.tab);
+};
+
+/* ====================== USUARIOS ====================== */
+function userBadge(u) {
+  if (!u.code) return ['Sin código', 'gray'];
+  if (!u.redeemed_at) return ['Código sin canjear', 'amber'];
+  if (!u.is_active) return ['Desactivado', 'red'];
+  if (u.expires_at && new Date(u.expires_at) <= new Date()) return ['Caducado', 'red'];
+  return ['Activo', 'green'];
+}
+function renderUsers() {
+  const q = $('#uSearch').value.trim().toLowerCase();
+  const rows = state.users.filter(u => !q || u.email.toLowerCase().includes(q));
+  $('#uCount').textContent = `${rows.length} usuarios`;
+  $('#uBody').innerHTML = rows.map(u => {
+    const [t, c] = userBadge(u);
+    return `<tr data-id="${u.id}">
+      <td>${esc(u.email)}</td>
+      <td><span class="b ${c}">${t}</span></td>
+      <td>${u.code ? `<code>${esc(u.code)}</code> <button class="mini" data-act="copy">Copiar</button>` : '—'}</td>
+      <td><input type="date" data-act="exp" value="${u.expires_at ? localDate(u.expires_at) : ''}"> <button class="mini" data-act="plus30">+30 d</button></td>
+      <td class="acts"><button class="mini" data-act="gen">Generar código</button><button class="mini" data-act="toggle">${u.is_active ? 'Desactivar' : 'Activar'}</button></td>
+    </tr>`;
+  }).join('');
+}
+async function patchUser(u, patch) {
+  const { error } = await sb.from('user_codes').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', u.id);
+  if (error) return toast(error.message, true);
+  Object.assign(u, patch); renderUsers();
+}
+$('#uSearch').oninput = renderUsers;
+$('#uReload').onclick = () => loadAll().then(() => toast('Recargado'));
+$('#uBody').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-act]'); if (!b) return;
+  const u = state.users.find(x => x.id === b.closest('tr').dataset.id);
+  const act = b.dataset.act;
+  if (act === 'copy') { await navigator.clipboard.writeText(u.code); return toast('Código copiado'); }
+  if (act === 'gen') {
+    if (u.redeemed_at && !confirm('Este usuario ya canjeó un código. Uno nuevo lo bloqueará hasta que lo canjee. ¿Continuar?')) return;
+    return patchUser(u, { code: genCode(), is_active: true, redeemed_at: null, attempts: 0 });
+  }
+  if (act === 'toggle') return patchUser(u, { is_active: !u.is_active });
+  if (act === 'plus30') {
+    const base = u.expires_at && new Date(u.expires_at) > new Date() ? new Date(u.expires_at) : new Date();
+    base.setDate(base.getDate() + 30);
+    return patchUser(u, { expires_at: base.toISOString() });
+  }
+});
+$('#uBody').addEventListener('change', e => {
+  if (e.target.dataset.act !== 'exp') return;
+  const u = state.users.find(x => x.id === e.target.closest('tr').dataset.id);
+  const v = e.target.value;
+  patchUser(u, { expires_at: v ? new Date(v + 'T23:59:59').toISOString() : null });
+});
+
+/* ====================== CANALES ====================== */
+function fillFilters() {
+  const countries = new Map();
+  state.channels.forEach(c => countries.set(c.country_code, c.country_name));
+  const keep = [$('#fCountry').value, $('#fCat').value];
+  $('#fCountry').innerHTML = '<option value="">Todos los países</option>' +
+    [...countries].sort((a, b) => a[1].localeCompare(b[1])).map(([k, v]) => `<option value="${esc(k)}">${esc(v)}</option>`).join('');
+  const catOpts = state.cats.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  $('#fCat').innerHTML = '<option value="">Todas las categorías</option><option value="none">Sin categoría</option>' + catOpts;
+  $('#bCat').innerHTML = '<option value="">Sin categoría</option>' + catOpts;
+  $('#fCategory').innerHTML = '<option value="">Sin categoría</option>' + catOpts;
+  $('#fCountry').value = keep[0]; $('#fCat').value = keep[1];
+}
+function filteredChannels() {
+  const q = $('#cSearch').value.trim().toLowerCase(), cc = $('#fCountry').value, cat = $('#fCat').value, st = $('#fStatus').value;
+  return state.channels.filter(c =>
+    (!q || c.name.toLowerCase().includes(q)) &&
+    (!cc || c.country_code === cc) &&
+    (!cat || (cat === 'none' ? !c.category_id : c.category_id === cat)) &&
+    (!st || (st === 'hidden' ? c.is_hidden : st === 'down' ? !c.is_active : (c.is_active && !c.is_hidden))));
+}
+function renderChannels() {
+  const list = filteredChannels(), shown = list.slice(0, 1500);
+  $('#cInfo').textContent = `${list.length} canales · ${selCh.size} seleccionados` + (list.length > shown.length ? ` · mostrando ${shown.length}` : '');
+  $('#cBody').innerHTML = shown.map(c => `<tr data-id="${c.id}">
+    <td><input type="checkbox" data-sel ${selCh.has(c.id) ? 'checked' : ''}></td>
+    <td>${c.logo_url ? `<img class="logo" src="${esc(c.logo_url)}" referrerpolicy="no-referrer" loading="lazy" onerror="this.style.visibility='hidden'">` : ''}</td>
+    <td>${esc(c.name)}</td>
+    <td><img class="flag" src="https://flagcdn.com/w20/${esc(c.country_code)}.png" alt="">${esc(c.country_name)}</td>
+    <td>${esc(catName(c.category_id))}</td>
+    <td>${c.is_hidden ? '<span class="b gray">Oculto</span>' : ''}${c.is_active ? '' : '<span class="b red">Caído</span>'}${c.is_active && !c.is_hidden ? '<span class="b green">OK</span>' : ''}</td>
+    <td class="mut">${c.last_checked_at ? new Date(c.last_checked_at).toLocaleString() : '—'}</td>
+    <td><button class="mini" data-act="edit">Editar</button></td>
+  </tr>`).join('');
+}
+['cSearch', 'fCountry', 'fCat', 'fStatus'].forEach(id => $('#' + id).addEventListener('input', renderChannels));
+$('#cAll').onchange = e => { filteredChannels().forEach(c => e.target.checked ? selCh.add(c.id) : selCh.delete(c.id)); renderChannels(); };
+$('#cBody').addEventListener('change', e => {
+  if (!e.target.matches('[data-sel]')) return;
+  const id = e.target.closest('tr').dataset.id;
+  e.target.checked ? selCh.add(id) : selCh.delete(id);
+  renderChannels();
+});
+$('#cBody').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act=edit]');
+  if (b) openChannel(state.channels.find(c => c.id === b.closest('tr').dataset.id));
+});
+
+async function bulkChannels(patch, label) {
+  const ids = [...selCh];
+  if (!ids.length) return toast('Selecciona canales', true);
+  for (const part of chunk(ids, 100)) {
+    const { error } = await sb.from('channels').update(patch).in('id', part);
+    if (error) return toast(error.message, true);
+  }
+  state.channels.forEach(c => selCh.has(c.id) && Object.assign(c, patch));
+  toast(`${ids.length} canales: ${label}`); renderChannels();
+}
+$('#bHide').onclick = () => bulkChannels({ is_hidden: true }, 'ocultos');
+$('#bShow').onclick = () => bulkChannels({ is_hidden: false }, 'visibles');
+$('#bMove').onclick = () => bulkChannels({ category_id: $('#bCat').value || null }, 'movidos');
+$('#bDel').onclick = async () => {
+  const ids = [...selCh];
+  if (!ids.length) return toast('Selecciona canales', true);
+  if (!confirm(`¿Eliminar ${ids.length} canales? No se puede deshacer.`)) return;
+  for (const part of chunk(ids, 100)) {
+    const { error } = await sb.from('channels').delete().in('id', part);
+    if (error) return toast(error.message, true);
+  }
+  state.channels = state.channels.filter(c => !selCh.has(c.id));
+  selCh.clear(); fillFilters(); renderChannels(); toast('Eliminados');
+};
+
+/* --- añadir / editar --- */
+let editing = null;
+async function openChannel(c) {
+  editing = c || null;
+  $('#chTitle').textContent = c ? 'Editar canal' : 'Añadir canal';
+  $('#fName').value = c?.name ?? ''; $('#fCc').value = c?.country_code ?? '';
+  $('#fCn').value = c?.country_name ?? ''; $('#fCategory').value = c?.category_id ?? '';
+  $('#fLogo').value = c?.logo_url ?? ''; $('#fOrder').value = c?.sort_order ?? 0;
+  $('#fHidden').checked = c?.is_hidden ?? false; $('#fActive').checked = c?.is_active ?? true;
+  $('#fUrl').value = '';
+  if (c) { try { $('#fUrl').value = await dec(c.stream_url_enc); } catch { toast('No se pudo descifrar la URL', true); } }
+  $('#chDlg').showModal();
+}
+$('#cAdd').onclick = () => openChannel(null);
+$('#chCancel').onclick = () => $('#chDlg').close();
+$('#chForm').onsubmit = async e => {
+  e.preventDefault();
+  const cc = $('#fCc').value.trim().toLowerCase();
+  if (!/^[a-z]{2}$/.test(cc)) return toast('Código de país: 2 letras', true);
+  const row = {
+    name: $('#fName').value.trim(), country_code: cc, country_name: $('#fCn').value.trim(),
+    category_id: $('#fCategory').value || null, logo_url: $('#fLogo').value.trim() || null,
+    sort_order: parseInt($('#fOrder').value, 10) || 0,
+    is_hidden: $('#fHidden').checked, is_active: $('#fActive').checked,
+    stream_url_enc: await enc($('#fUrl').value.trim()),
+  };
+  if (editing && row.is_active) row.fail_count = 0;
+  const q = editing ? sb.from('channels').update(row).eq('id', editing.id) : sb.from('channels').insert(row);
+  const { data, error } = await q.select().single();
+  if (error) return toast(error.message, true);
+  if (editing) Object.assign(editing, data); else state.channels.push(data);
+  $('#chDlg').close(); fillFilters(); renderChannels(); toast('Guardado');
+};
+
+/* --- importación masiva --- */
+$('#cImport').onclick = () => $('#impDlg').showModal();
+$('#impCancel').onclick = () => $('#impDlg').close();
+$('#impGo').onclick = async () => {
+  const lines = $('#impText').value.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+  const parsed = [], bad = [];
+  lines.forEach((l, i) => {
+    const p = l.split('|').map(s => s.trim());
+    if (p.length < 6 || !/^[a-zA-Z]{2}$/.test(p[1]) || !p[0] || !p[5]) return bad.push(i + 1);
+    parsed.push({ name: p[0], cc: p[1].toLowerCase(), country: p[2] || 'Internacional', cat: p[3], logo: p[4], url: p[5] });
+  });
+  if (!parsed.length) return toast('Nada válido que importar', true);
+  const known = new Map(state.cats.map(c => [c.name.toLowerCase(), c.id]));
+  const newCats = [...new Set(parsed.map(p => p.cat).filter(n => n && !known.has(n.toLowerCase())))];
+  if (newCats.length) {
+    const { data, error } = await sb.from('categories').insert(newCats.map(name => ({ name }))).select();
+    if (error) return toast(error.message, true);
+    data.forEach(c => { state.cats.push(c); known.set(c.name.toLowerCase(), c.id); });
+  }
+  const rows = [];
+  for (const p of parsed) rows.push({
+    name: p.name, country_code: p.cc, country_name: p.country,
+    category_id: p.cat ? known.get(p.cat.toLowerCase()) : null,
+    logo_url: p.logo || null, stream_url_enc: await enc(p.url),
+  });
+  for (const part of chunk(rows, 200)) {
+    const { data, error } = await sb.from('channels').insert(part).select();
+    if (error) return toast(error.message, true);
+    state.channels.push(...data);
+  }
+  $('#impDlg').close(); $('#impText').value = '';
+  fillFilters(); renderChannels(); renderCats();
+  toast(`Importados ${rows.length}` + (bad.length ? ` · líneas inválidas: ${bad.join(', ')}` : ''), bad.length > 0);
+};
+
+/* ====================== CATEGORÍAS ====================== */
+function renderCats() {
+  $('#kBody').innerHTML = state.cats.map(c => `<tr data-id="${c.id}">
+    <td><input type="checkbox" data-sel ${selCat.has(c.id) ? 'checked' : ''}></td>
+    <td><input data-f="name" value="${esc(c.name)}"></td>
+    <td><input data-f="sort_order" type="number" value="${c.sort_order}" style="width:80px"></td>
+    <td>${state.channels.filter(x => x.category_id === c.id).length}</td>
+    <td>${c.is_hidden ? '<span class="b gray">Oculta</span>' : '<span class="b green">Visible</span>'}</td>
+  </tr>`).join('');
+}
+$('#catAdd').onclick = async () => {
+  const name = $('#catNew').value.trim(); if (!name) return;
+  const { data, error } = await sb.from('categories').insert({ name, sort_order: state.cats.length }).select().single();
+  if (error) return toast(error.message, true);
+  state.cats.push(data); $('#catNew').value = ''; fillFilters(); renderCats();
+};
+$('#kAll').onchange = e => { state.cats.forEach(c => e.target.checked ? selCat.add(c.id) : selCat.delete(c.id)); renderCats(); };
+$('#kBody').addEventListener('change', async e => {
+  const id = e.target.closest('tr').dataset.id;
+  if (e.target.matches('[data-sel]')) { e.target.checked ? selCat.add(id) : selCat.delete(id); return; }
+  const f = e.target.dataset.f; if (!f) return;
+  const val = f === 'sort_order' ? (parseInt(e.target.value, 10) || 0) : e.target.value.trim();
+  if (f === 'name' && !val) return renderCats();
+  const { error } = await sb.from('categories').update({ [f]: val }).eq('id', id);
+  if (error) { toast(error.message, true); return loadAll(); }
+  state.cats.find(c => c.id === id)[f] = val; fillFilters(); renderChannels();
+});
+async function bulkCats(patch, label) {
+  const ids = [...selCat];
+  if (!ids.length) return toast('Selecciona categorías', true);
+  const { error } = await sb.from('categories').update(patch).in('id', ids);
+  if (error) return toast(error.message, true);
+  state.cats.forEach(c => selCat.has(c.id) && Object.assign(c, patch));
+  renderCats(); toast(`${ids.length} categorías: ${label}`);
+}
+$('#kHide').onclick = () => bulkCats({ is_hidden: true }, 'ocultas');
+$('#kShow').onclick = () => bulkCats({ is_hidden: false }, 'visibles');
+$('#kDel').onclick = async () => {
+  const ids = [...selCat];
+  if (!ids.length) return toast('Selecciona categorías', true);
+  if (!confirm(`¿Eliminar ${ids.length} categorías? Sus canales quedarán sin categoría.`)) return;
+  const { error } = await sb.from('categories').delete().in('id', ids);
+  if (error) return toast(error.message, true);
+  state.channels.forEach(c => selCat.has(c.category_id) && (c.category_id = null));
+  state.cats = state.cats.filter(c => !selCat.has(c.id));
+  selCat.clear(); fillFilters(); renderCats(); renderChannels();
+};
+
+/* ====================== AJUSTES ====================== */
+async function loadSettings() {
+  const { data } = await sb.from('app_config').select('value').eq('key', 'contact_text').maybeSingle();
+  $('#contactText').value = data?.value ?? '';
+}
+$('#saveSettings').onclick = async () => {
+  const { error } = await sb.from('app_config').upsert({
+    key: 'contact_text', value: $('#contactText').value.trim(), requires_access: false, updated_at: new Date().toISOString(),
+  });
+  error ? toast(error.message, true) : toast('Guardado');
+};
+</script>
+</body>
+</html>

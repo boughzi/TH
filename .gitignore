@@ -1,0 +1,16 @@
+.env
+*.zip
+__pycache__/
+.venv/
+_site/
+
+# Flutter
+app/.dart_tool/
+app/build/
+app/.flutter-plugins*
+app/.packages
+app/pubspec.lock
+app/android/local.properties
+app/android/key.properties
+app/android/.gradle/
+app/ios/Pods/
